@@ -119,6 +119,21 @@
     .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
     .dot-ok { background: var(--success); } .dot-err { background: var(--danger); }
 
+    /* Sync Status */
+    .sync-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .sync-block h4 { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+    .sync-value { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
+    .sync-sub { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
+    .sync-schedule { display: flex; gap: 8px; margin-top: 8px; }
+    .sync-time {
+      padding: 4px 10px; border-radius: var(--radius); font-size: 0.78rem; font-weight: 600;
+      background: var(--surface-alt); border: 1px solid var(--border);
+    }
+    .sync-time.next { background: #EFF6FF; border-color: var(--type-L); color: var(--type-L); }
+    .sync-status-ok { color: var(--success); }
+    .sync-status-err { color: var(--danger); }
+    .sync-status-pending { color: var(--text-secondary); }
+
     /* Loading */
     .loading { text-align: center; padding: 40px; color: var(--text-secondary); }
 
@@ -143,6 +158,12 @@
   <div class="container">
     <!-- Summary -->
     <div class="summary" id="summary"><div class="loading">Loading...</div></div>
+
+    <!-- Sync Status -->
+    <div class="section">
+      <div class="section-title">Auto Sync</div>
+      <div class="chart-card" id="syncStatus"><div class="loading">Loading...</div></div>
+    </div>
 
     <!-- Charts -->
     <div class="section">
@@ -202,6 +223,7 @@
         renderTypeFilters(docs);
         renderTable();
         renderHistory(history);
+        renderSyncStatus(history);
       } catch (e) {
         document.getElementById('summary').innerHTML = `<div class="loading" style="color:var(--danger)">Error: ${e.message}</div>`;
       }
@@ -335,6 +357,84 @@
         </div>`;
       }).join('');
       document.getElementById('historySection').innerHTML = header + rows;
+    }
+
+    // ── Sync Status ──
+    function renderSyncStatus(history) {
+      const el = document.getElementById('syncStatus');
+      const SCHEDULE = [0, 6, 12, 18]; // OpenClaw: 06,12,18,24 → Sync: 00:15, 06:15, 12:15, 18:15
+
+      // 마지막 동기화
+      const last = history[0];
+      const lastTime = last ? new Date(last.run_at) : null;
+      const lastAgo = lastTime ? getTimeAgo(lastTime) : 'N/A';
+      const lastStatus = !last ? 'pending' : last.errors > 0 ? 'err' : 'ok';
+      const lastIcon = lastStatus === 'ok' ? '&#10003;' : lastStatus === 'err' ? '&#10007;' : '&#8230;';
+      const lastLabel = lastStatus === 'ok' ? 'Success' : lastStatus === 'err' ? `${last.errors} errors` : 'No data';
+
+      // 다음 예정
+      const now = new Date();
+      const nowH = now.getHours();
+      const nowM = now.getMinutes();
+      let nextHour = SCHEDULE.find(h => h > nowH || (h === nowH && 15 > nowM));
+      if (nextHour === undefined) nextHour = SCHEDULE[0]; // 내일 00:15
+      const nextDate = new Date(now);
+      if (nextHour <= nowH && !(nextHour === nowH && 15 > nowM)) nextDate.setDate(nextDate.getDate() + 1);
+      nextDate.setHours(nextHour, 15, 0, 0);
+      const untilNext = getTimeUntil(nextDate);
+
+      // 오늘 동기화 횟수
+      const todayStr = now.toISOString().slice(0, 10);
+      const todayCount = history.filter(h => h.run_at && h.run_at.startsWith(todayStr)).length;
+
+      // 스케줄 표시
+      const scheduleHtml = SCHEDULE.map(h => {
+        const label = `${String(h).padStart(2, '0')}:15`;
+        const isNext = h === nextHour;
+        return `<span class="sync-time ${isNext ? 'next' : ''}">${label}</span>`;
+      }).join('');
+
+      el.innerHTML = `
+        <div class="sync-grid">
+          <div class="sync-block">
+            <h4>Last Sync</h4>
+            <div class="sync-value sync-status-${lastStatus}">${lastIcon} ${lastLabel}</div>
+            <div class="sync-sub">${lastTime ? lastTime.toLocaleString('ko-KR') : ''} (${lastAgo})</div>
+            ${last ? `<div class="sync-sub">Scanned: ${last.total_scanned} / New: ${last.new_ingested} / Skip: ${last.skipped_hash||0}</div>` : ''}
+          </div>
+          <div class="sync-block">
+            <h4>Next Sync</h4>
+            <div class="sync-value">${String(nextHour).padStart(2,'0')}:15</div>
+            <div class="sync-sub">${untilNext}</div>
+          </div>
+          <div class="sync-block">
+            <h4>Today</h4>
+            <div class="sync-value">${todayCount} / 4</div>
+            <div class="sync-sub">syncs completed</div>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <h4 style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Schedule (daily)</h4>
+          <div class="sync-schedule">${scheduleHtml}</div>
+          <div class="sync-sub" style="margin-top:6px">OpenClaw 수집 15분 후 자동 실행 (launchd)</div>
+        </div>
+      `;
+    }
+
+    function getTimeAgo(date) {
+      const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (sec < 60) return `${sec}s ago`;
+      if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
+      if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+      return `${Math.floor(sec/86400)}d ago`;
+    }
+
+    function getTimeUntil(date) {
+      const sec = Math.floor((date.getTime() - Date.now()) / 1000);
+      if (sec < 0) return 'now';
+      if (sec < 60) return `in ${sec}s`;
+      if (sec < 3600) return `in ${Math.floor(sec/60)}m`;
+      return `in ${Math.floor(sec/3600)}h ${Math.floor((sec%3600)/60)}m`;
     }
 
     // ── Init ──
