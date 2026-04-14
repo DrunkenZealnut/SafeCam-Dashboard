@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeCam Data Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard+Variable:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #F5F5F4; --surface: #FFFFFF; --surface-alt: #FAFAF9;
+      --border: #E5E5E4; --text: #1B2A4A; --text-secondary: #6B7280;
+      --primary: #1B2A4A; --danger: #D94040; --success: #2E7D32;
+      --type-L: #2563EB; --type-M: #7C3AED; --type-S: #0891B2;
+      --type-C: #DC2626; --type-N: #D97706;
+      --radius: 6px;
+    }
+    body {
+      font-family: 'Pretendard Variable', -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    /* Header */
+    .header { background: var(--primary); color: #fff; padding: 32px 0 24px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+    .header p { font-size: 0.85rem; color: rgba(255,255,255,0.65); margin-top: 4px; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; }
+    .refresh-btn {
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+      color: #fff; padding: 6px 14px; border-radius: var(--radius); cursor: pointer;
+      font-size: 0.8rem; font-family: inherit;
+    }
+    .refresh-btn:hover { background: rgba(255,255,255,0.2); }
+
+    /* Summary Cards */
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: -20px 0 24px; position: relative; z-index: 1; }
+    .summary-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; text-align: center;
+    }
+    .summary-value { font-size: 2rem; font-weight: 800; color: var(--primary); }
+    .summary-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; letter-spacing: 0.02em; }
+
+    /* Section */
+    .section { margin-bottom: 24px; }
+    .section-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; color: var(--primary); }
+
+    /* Charts Grid */
+    .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .chart-card h3 { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 12px; }
+
+    /* Bar Chart */
+    .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .bar-label { font-size: 0.78rem; font-weight: 500; min-width: 90px; text-align: right; }
+    .bar-track { flex: 1; height: 20px; background: var(--surface-alt); border-radius: 3px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; display: flex; align-items: center; padding-left: 6px; }
+    .bar-count { font-size: 0.7rem; font-weight: 600; color: #fff; }
+
+    /* Type Colors */
+    .bar-L { background: var(--type-L); } .bar-M { background: var(--type-M); }
+    .bar-S { background: var(--type-S); } .bar-C { background: var(--type-C); }
+    .bar-N { background: var(--type-N); }
+    .bar-default { background: var(--primary); }
+
+    /* Badge */
+    .type-badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 1px 6px;
+      border-radius: 3px; color: #fff; margin-right: 4px;
+    }
+    .badge-L { background: var(--type-L); } .badge-M { background: var(--type-M); }
+    .badge-S { background: var(--type-S); } .badge-C { background: var(--type-C); }
+    .badge-N { background: var(--type-N); }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px; border-bottom: 2px solid var(--border); }
+    td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:hover { background: var(--surface-alt); }
+    .enriched-yes { color: var(--success); font-weight: 600; }
+    .enriched-no { color: var(--text-secondary); }
+
+    /* Filters */
+    .filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); color: var(--text-secondary); font-size: 0.78rem;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .filter-btn:hover:not(.active) { border-color: var(--primary); color: var(--text); }
+
+    /* Search */
+    .search-input {
+      width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 0.85rem; font-family: inherit; margin-bottom: 12px; background: var(--surface);
+    }
+    .search-input:focus { outline: none; border-color: var(--primary); }
+
+    /* Pagination */
+    .pagination { display: flex; justify-content: center; gap: 4px; margin-top: 12px; }
+    .page-btn {
+      padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); font-size: 0.78rem; cursor: pointer; font-family: inherit;
+    }
+    .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* History */
+    .history-row { display: grid; grid-template-columns: 140px 60px repeat(4, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.78rem; }
+    .history-header { font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 0.7rem; }
+
+    /* Status */
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+    .dot-ok { background: var(--success); } .dot-err { background: var(--danger); }
+
+    /* Loading */
+    .loading { text-align: center; padding: 40px; color: var(--text-secondary); }
+
+    @media (max-width: 768px) {
+      .charts { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: repeat(3, 1fr); }
+      .history-row { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="container header-row">
+      <div>
+        <h1>SafeCam Data Dashboard</h1>
+        <p>safecam.law_documents &mdash; OpenClaw RAG Pipeline</p>
+      </div>
+      <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Summary -->
+    <div class="summary" id="summary"><div class="loading">Loading...</div></div>
+
+    <!-- Charts -->
+    <div class="section">
+      <div class="section-title">Distribution</div>
+      <div class="charts" id="charts"></div>
+    </div>
+
+    <!-- Documents -->
+    <div class="section">
+      <div class="section-title">Documents</div>
+      <input class="search-input" id="searchInput" placeholder="Search by title, doc_id, or keyword..." oninput="onSearch()">
+      <div class="filters" id="typeFilters"></div>
+      <div class="chart-card">
+        <div class="table-wrap" id="docTable"><div class="loading">Loading...</div></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    <!-- Ingest History -->
+    <div class="section">
+      <div class="section-title">Ingest History</div>
+      <div class="chart-card" id="historySection"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <script>
+    // ── Config ──
+    const SUPABASE_URL = 'https://exnloiyzmdzbhljwwxrs.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_6EjqM_6qP_wFQGD54P2M9Q_eULAJHnJ';
+
+    const SCHEMA = 'safecam';
+    let allDocs = [];
+    let currentPage = 1;
+    let currentType = 'all';
+    let searchQuery = '';
+    const PAGE_SIZE = 20;
+
+    // ── API ──
+    async function query(path) {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Accept-Profile': SCHEMA }
+      });
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.json();
+    }
+
+    // ── Load All ──
+    async function loadAll() {
+      try {
+        const [docs, history] = await Promise.all([
+          query('law_documents?select=doc_id,title,type,industry,hazard,region,entity,reliability,enriched_content,enriched_at,status,collected_at,summary,source_url&order=doc_id&limit=500'),
+          query('ingest_history?select=*&order=run_at.desc&limit=10'),
+        ]);
+        allDocs = docs;
+        renderSummary(docs);
+        renderCharts(docs);
+        renderTypeFilters(docs);
+        renderTable();
+        renderHistory(history);
+      } catch (e) {
+        document.getElementById('summary').innerHTML = `<div class="loading" style="color:var(--danger)">Error: ${e.message}</div>`;
+      }
+    }
+
+    // ── Summary Cards ──
+    function renderSummary(docs) {
+      const enriched = docs.filter(d => d.enriched_content).length;
+      const types = new Set(docs.map(d => d.type)).size;
+      const industries = new Set(docs.map(d => d.industry)).size;
+      const regions = new Set(docs.map(d => d.region)).size;
+      document.getElementById('summary').innerHTML = `
+        <div class="summary-card"><div class="summary-value">${docs.length}</div><div class="summary-label">Total Documents</div></div>
+        <div class="summary-card"><div class="summary-value">${enriched}</div><div class="summary-label">Enriched</div></div>
+        <div class="summary-card"><div class="summary-value">${docs.length - enriched}</div><div class="summary-label">Pending</div></div>
+        <div class="summary-card"><div class="summary-value">${types}</div><div class="summary-label">Types</div></div>
+        <div class="summary-card"><div class="summary-value">${industries}</div><div class="summary-label">Industries</div></div>
+        <div class="summary-card"><div class="summary-value">${regions}</div><div class="summary-label">Regions</div></div>
+      `;
+    }
+
+    // ── Charts ──
+    function renderCharts(docs) {
+      const typeNames = { L: 'Law/Regulation', M: 'Manual', S: 'SOP', C: 'Case Study', N: 'News' };
+      const charts = [
+        { title: 'By Type', key: 'type', colors: true },
+        { title: 'By Industry', key: 'industry' },
+        { title: 'By Hazard', key: 'hazard' },
+        { title: 'By Region', key: 'region' },
+      ];
+
+      document.getElementById('charts').innerHTML = charts.map(chart => {
+        const counts = {};
+        docs.forEach(d => { const v = d[chart.key]; counts[v] = (counts[v]||0) + 1; });
+        const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+        const max = sorted[0]?.[1] || 1;
+
+        const bars = sorted.map(([label, count]) => {
+          const pct = (count / max * 100).toFixed(0);
+          const cls = chart.colors ? `bar-${label}` : 'bar-default';
+          const displayLabel = chart.key === 'type' ? `${label} ${typeNames[label]||''}` : label;
+          return `<div class="bar-row">
+            <span class="bar-label">${displayLabel}</span>
+            <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"><span class="bar-count">${count}</span></div></div>
+          </div>`;
+        }).join('');
+
+        return `<div class="chart-card"><h3>${chart.title}</h3>${bars}</div>`;
+      }).join('');
+    }
+
+    // ── Type Filters ──
+    function renderTypeFilters(docs) {
+      const types = ['all', ...new Set(docs.map(d => d.type))].sort();
+      const typeLabels = { all: 'All', L: 'L Law', M: 'M Manual', S: 'S SOP', C: 'C Case', N: 'N News' };
+      document.getElementById('typeFilters').innerHTML = types.map(t =>
+        `<button class="filter-btn ${t === currentType ? 'active' : ''}" onclick="filterType('${t}')">${typeLabels[t]||t}</button>`
+      ).join('');
+    }
+
+    function filterType(t) { currentType = t; currentPage = 1; renderTypeFilters(allDocs); renderTable(); }
+    function onSearch() { searchQuery = document.getElementById('searchInput').value.toLowerCase(); currentPage = 1; renderTable(); }
+
+    // ── Table ──
+    function getFiltered() {
+      return allDocs.filter(d => {
+        if (currentType !== 'all' && d.type !== currentType) return false;
+        if (searchQuery) {
+          const hay = `${d.doc_id} ${d.title} ${d.summary||''} ${d.entity||''} ${d.industry} ${d.hazard}`.toLowerCase();
+          return hay.includes(searchQuery);
+        }
+        return true;
+      });
+    }
+
+    function renderTable() {
+      const filtered = getFiltered();
+      const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+      const page = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+      const rows = page.map(d => {
+        const enrichedIcon = d.enriched_content ? '<span class="enriched-yes">&#10003;</span>' : '<span class="enriched-no">&mdash;</span>';
+        const url = d.source_url?.startsWith('http') ? `<a href="${d.source_url}" target="_blank" style="font-size:0.72rem;color:var(--type-L)">link</a>` : '';
+        return `<tr>
+          <td><span class="type-badge badge-${d.type}">${d.type}</span></td>
+          <td style="font-size:0.75rem;font-family:monospace;color:var(--text-secondary)">${d.doc_id}</td>
+          <td><strong>${d.title}</strong><br><span style="font-size:0.75rem;color:var(--text-secondary)">${d.industry} / ${d.hazard} / ${d.region}</span></td>
+          <td>${d.entity || '&mdash;'}</td>
+          <td style="text-align:center">${enrichedIcon}</td>
+          <td>${url}</td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('docTable').innerHTML = `
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px">${filtered.length} documents</div>
+        <table>
+          <thead><tr><th>Type</th><th>Doc ID</th><th>Title</th><th>Entity</th><th>Enriched</th><th>URL</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+
+      // Pagination
+      if (totalPages > 1) {
+        let btns = '';
+        for (let i = 1; i <= totalPages; i++) {
+          if (totalPages > 10 && Math.abs(i - currentPage) > 2 && i !== 1 && i !== totalPages) {
+            if (i === currentPage - 3 || i === currentPage + 3) btns += '<span style="padding:4px">...</span>';
+            continue;
+          }
+          btns += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+        }
+        document.getElementById('pagination').innerHTML = btns;
+      } else {
+        document.getElementById('pagination').innerHTML = '';
+      }
+    }
+
+    function goPage(p) { currentPage = p; renderTable(); }
+
+    // ── History ──
+    function renderHistory(history) {
+      if (!history.length) { document.getElementById('historySection').innerHTML = '<div class="loading">No history</div>'; return; }
+      const header = `<div class="history-row history-header"><span>Time</span><span>Trigger</span><span>Scanned</span><span>Ingested</span><span>Skipped</span><span>Errors</span></div>`;
+      const rows = history.map(h => {
+        const dot = h.errors > 0 ? '<span class="status-dot dot-err"></span>' : '<span class="status-dot dot-ok"></span>';
+        const time = h.run_at ? new Date(h.run_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '?';
+        return `<div class="history-row">
+          <span>${dot}${time}</span><span>${h.trigger}</span>
+          <span>${h.total_scanned}</span><span>${h.new_ingested}</span>
+          <span>${h.skipped_hash||0}</span><span>${h.errors}</span>
+        </div>`;
+      }).join('');
+      document.getElementById('historySection').innerHTML = header + rows;
+    }
+
+    // ── Init ──
+    loadAll();
+  </script>
+</body>
+</html>
