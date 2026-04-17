@@ -247,7 +247,7 @@
 
     // ── Charts ──
     function renderCharts(docs) {
-      const typeNames = { L: 'Law/Regulation', M: 'Manual', S: 'SOP', C: 'Case Study', N: 'News' };
+      const typeNames = { L: '법령/규제', M: '매뉴얼', S: '작업절차(SOP)', C: '사고사례', N: '뉴스' };
       const charts = [
         { title: 'By Type', key: 'type', colors: true },
         { title: 'By Industry', key: 'industry' },
@@ -278,7 +278,7 @@
     // ── Type Filters ──
     function renderTypeFilters(docs) {
       const types = ['all', ...new Set(docs.map(d => d.type))].sort();
-      const typeLabels = { all: 'All', L: 'L Law', M: 'M Manual', S: 'S SOP', C: 'C Case', N: 'N News' };
+      const typeLabels = { all: '전체', L: '법령/규제', M: '매뉴얼', S: '작업절차', C: '사고사례', N: '뉴스' };
       document.getElementById('typeFilters').innerHTML = types.map(t =>
         `<button class="filter-btn ${t === currentType ? 'active' : ''}" onclick="filterType('${t}')">${typeLabels[t]||t}</button>`
       ).join('');
